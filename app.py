@@ -49,4 +49,98 @@ class Item(db.Model):
     price = db.Column(db.Float, nullable=False)
     image_url = db.Column(db.String(255), nullable=True, default='default.jpg')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-  seller_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    seller_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+# ==========================================
+# ROUTES
+# ==========================================
+
+@app.route('/')
+def home():
+    return redirect(url_for('market'))
+
+@app.route('/auth', methods=['GET', 'POST'])
+def auth():
+    if current_user.is_authenticated:
+        return redirect(url_for('market'))
+        
+    if request.method == 'POST':
+        action = request.form.get('action')
+        
+        # Handling Login
+        if action == 'login':
+            email = request.form.get('email')
+            password = request.form.get('password')
+            user = User.query.filter_by(email=email).first()
+            
+            if user and user.check_password(password):
+                login_user(user)
+                return redirect(url_for('market'))
+            else:
+                flash('Invalid email or password', 'error')
+                
+        # Handling Registration
+        elif action == 'register':
+            username = request.form.get('username')
+            email = request.form.get('email')
+            password = request.form.get('password')
+            
+            if User.query.filter_by(email=email).first() or User.query.filter_by(username=username).first():
+                flash('Username or Email already exists', 'error')
+            else:
+                new_user = User(username=username, email=email)
+                new_user.set_password(password)
+                db.session.add(new_user)
+                db.session.commit()
+                login_user(new_user)
+                return redirect(url_for('market'))
+                
+    return render_template('auth.html')
+
+@app.route('/market')
+def market():
+    items = Item.query.order_by(Item.created_at.desc()).all()
+    return render_template('market.html', items=items)
+
+@app.route('/item/add', methods=['POST'])
+@login_required
+def add_item():
+    title = request.form.get('title')
+    description = request.form.get('description')
+    price = request.form.get('price')
+    
+    if not title or not description or not price:
+        flash('All fields are required!', 'error')
+        return redirect(url_for('market'))
+        
+    try:
+        new_item = Item(
+            title=title,
+            description=description,
+            price=float(price),
+            seller_id=current_user.id
+        )
+        db.session.add(new_item)
+        db.session.commit()
+        flash('Item listed successfully!', 'success')
+    except ValueError:
+        flash('Invalid price format.', 'error')
+        
+    return redirect(url_for('market'))
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('auth'))
+
+# Initialize Database tables
+with app.app_context():
+    db.create_all()
+
+if __name__ == '__main__':
+    app.run(debug=True)
