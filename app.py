@@ -49,4 +49,4 @@ class Item(db.Model):
     price = db.Column(db.Float, nullable=False)
     image_url = db.Column(db.String(255), nullable=True, default='default.jpg')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    seller_id = db.Column(db.Integer, db.ForeignKey
+   seller_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
